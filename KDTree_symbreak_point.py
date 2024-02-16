@@ -9,7 +9,7 @@ import matplotlib.patches as patches
 from tqdm import trange
 
 class AGranPoint:
-    def __init__(self,Lx = 100.0,Ly=100.0,rho=0.25, r_tr = 8, r0 = 1, v0 = 1.2, eta = 1500,xi = 10,mu = 0.1, mur = 1,mu_tr = 0.0001,v_drag=1,k = 1, mode='drag'):
+    def __init__(self,Lx = 100.0,Ly=100.0,rho=0.25, r_tr = 8, r0 = 1, v0 = 1.2, eta = 1500,xi = 10,mu = 0.1, mur = 1,mu_tr = 0.0001,ka = 0.1,v_drag=1,k = 1, mode='drag'):
         self.Lx = Lx   # system size
         self.Ly = Ly
     
@@ -27,10 +27,12 @@ class AGranPoint:
         self.v_drag = v_drag
         self.mode =mode
         self.k = k
+        self.ka = ka
 
 
-        self.pos_tr = np.zeros(1)
-        self.pos_tr = self.Lx/2
+        self.pos_tr = np.zeros(2)
+        self.pos_tr[0] = self.Lx/2
+        self.pos_tr[1] = self.Ly/2
 
 
         self.N = int(rho*(self.Lx*self.Ly))
@@ -56,7 +58,8 @@ class AGranPoint:
     def periodic(self):
         self.pos[:,0] = self.pos[:,0]%self.Lx
         self.pos[:,1] = self.pos[:,1]%self.Ly
-        self.pos_tr = self.pos_tr%self.Lx
+        self.pos_tr[0] = self.pos_tr[0]%self.Lx
+        self.pos_tr[1] = self.pos_tr[1]%self.Ly
         
     def nematic(self):
         tree = cKDTree(self.pos,boxsize=[self.Lx,self.Ly])
@@ -67,7 +70,8 @@ class AGranPoint:
         dx = -self.pos[dist.row,0]+self.pos[dist.col,0]
         dy = -self.pos[dist.row,1]+self.pos[dist.col,1]
         
-        torque = sparse.coo_matrix((self.mur*np.sin(2*dtheta)/(dx**2+dy**2+0.1),(dist.row,dist.col)), shape=dist.get_shape())
+        # torque = sparse.coo_matrix((self.mur*np.sin(2*dtheta)/(dx**2+dy**2+0.1),(dist.row,dist.col)), shape=dist.get_shape())
+        torque = sparse.coo_matrix((self.mur*np.sin(2*dtheta),(dist.row,dist.col)), shape=dist.get_shape())
         
         TAU = np.squeeze(np.asarray(torque.sum(axis=1)))#/np.squeeze(np.asarray(torque.getnnz(axis=1)))
         density = np.squeeze(np.asarray(torque.getnnz(axis=1)))                                                                        
@@ -92,7 +96,7 @@ class AGranPoint:
         dy[dy>self.Ly/2] -=self.Ly
         dy[dy<-self.Ly/2]+=self.Ly
 
-        force = -k#*(2*(-np.sqrt(dx**2+dy**2)+r0)/r0)**6
+        force = -k*(2*(-np.sqrt(dx**2+dy**2)+r0)/r0)**2
         # force = self.WCA(dx**2+dy**2,r0,k)
 
         # filt = (~np.isnan(force))
@@ -111,24 +115,38 @@ class AGranPoint:
 
         
     def wall_repul(self):
-        dx = (self.pos[:,0]-self.pos_tr-self.Lx/2)%self.Lx-self.Lx/2
+        dx = (self.pos[:,0]-self.pos_tr[0]-self.Lx/2)%self.Lx-self.Lx/2
+        dy = (self.pos[:,1]-self.pos_tr[1]-self.Ly/2)%self.Ly-self.Ly/2
         FX = np.zeros(self.N)
+        FY = np.zeros(self.N)
+
         r0 = 3
-        filt1 = (dx**2<r0**2)*(dx>0)
-        filt2 = (dx**2<r0**2)*(dx<0)
+        inter = (dx**2<r0**2)*(dy**2<r0**2)
+        filt1 = inter*(dx>0)
+        filt2 = inter*(dx<0)
+        filt3 = inter*(dx>0)
+        filt4 = inter*(dx<0)
         FX[filt1] = 3*(r0-dx[filt1])**2
         FX[filt2] = -3*(dx[filt2]+r0)**2
+        FY[filt3] = 3*(r0-dy[filt3])**2
+        FY[filt4] = -3*(dy[filt4]+r0)**2
         # Fx[filt] = self.WCA(dx[filt],r_unit)
-        return FX*self.k
+        return (FX*self.k, FY*self.k)
         
     def wall_torque(self):
-        dx = (self.pos[:,0]-self.pos_tr-self.Lx/2)%self.Lx-self.Lx/2
+        dx = (self.pos[:,0]-self.pos_tr[0]-self.Lx/2)%self.Lx-self.Lx/2
+        dy = (self.pos[:,1]-self.pos_tr[1]-self.Ly/2)%self.Ly-self.Ly/2
         TAU = np.zeros(self.N)
         r0 = 3
-        filt1 = (dx**2<r0**2)*(dx>0)
-        filt2 = (dx**2<r0**2)*(dx<0)
+        inter = (dx**2<r0**2)*(dy**2<r0**2)
+        filt1 = inter*(dx>0)
+        filt2 = inter*(dx<0)
+        filt3 = inter*(dy>0)
+        filt4 = inter*(dy<0)
         TAU[filt1] = 6*(r0-dx[filt1])*np.sin(2*self.orient[filt1])
-        TAU[filt2] = 6*(dx[filt2]+r0)*np.sin(2*self.orient[filt2])        
+        TAU[filt2] = 6*(dx[filt2]+r0)*np.sin(2*self.orient[filt2])
+        TAU[filt3] = -6*(r0-dy[filt3])*np.sin(2*self.orient[filt3])
+        TAU[filt4] = -6*(dy[filt4]+r0)*np.sin(2*self.orient[filt4])
         return TAU
 
     def update(self):
@@ -140,7 +158,7 @@ class AGranPoint:
         
         # nematic alignment
         tau, dens = self.nematic()
-        TAU += tau
+        TAU += self.ka*tau/dens
         
         # volume exclusion
         (Fxvol,Fyvol) = self.Fvol(self.pos,self.pos,0.1,0.5)
@@ -148,7 +166,9 @@ class AGranPoint:
         FY += Fyvol
 
         # tracer dynamics
-        FX += self.wall_repul()
+        Fx_wall,Fy_wall = self.wall_repul()
+        FX += Fx_wall
+        FY += Fy_wall
         TAU += self.wall_torque()
 
 
