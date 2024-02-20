@@ -200,7 +200,7 @@ class AGranPoint:
         # volume exclusion
         # (Fxvol,Fyvol) = self.Fvol(self.pos,self.pos,0.1,0.5)  #data 1,2
         # (Fxvol,Fyvol) = self.Fvol(self.pos,self.pos,0.3,0.8)
-        (Fxvol,Fyvol) = self.Fvol(self.pos,self.pos,0.2,0.5)
+        (Fxvol,Fyvol) = self.Fvol(self.pos,self.pos,1,0.5)
 
         FX += Fxvol
         FY += Fyvol
