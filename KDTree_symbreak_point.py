@@ -48,6 +48,11 @@ class AGranPoint:
         self.orient = np.random.uniform(-np.pi, np.pi,size=self.N)
         self.periodic()
 
+        x,y = np.meshgrid(np.linspace(1,self.Lx-1,40),np.linspace(1,self.Ly-1,40))
+        self.marker = np.zeros((1600,2))
+        self.marker[:,0] = x.reshape(-1)
+        self.marker[:,1] = y.reshape(-1)
+
         
         # self.set_coord()
 #         self.relax()
@@ -193,7 +198,9 @@ class AGranPoint:
         TAU += self.ka*tau/dens
         
         # volume exclusion
-        (Fxvol,Fyvol) = self.Fvol(self.pos,self.pos,0.1,0.5)
+        # (Fxvol,Fyvol) = self.Fvol(self.pos,self.pos,0.1,0.5)  #data 1,2
+        (Fxvol,Fyvol) = self.Fvol(self.pos,self.pos,0.3,0.8)
+
         FX += Fxvol
         FY += Fyvol
 
@@ -239,7 +246,7 @@ class AGranPoint:
     def measure(self):
         tree1 = cKDTree(self.marker,boxsize=[self.Lx,self.Ly])
         tree2 = cKDTree(self.pos,boxsize=[self.Lx,self.Ly])
-        dist = tree1.sparse_distance_matrix(tree2, max_distance=self.r0*4,output_type='coo_matrix')
+        dist = tree1.sparse_distance_matrix(tree2, max_distance=self.r0*2,output_type='coo_matrix')
 
         rho = np.ones(self.N)[dist.col]
         rho_mat = sparse.coo_matrix((rho,(dist.row,dist.col)), shape=dist.get_shape())
@@ -251,6 +258,13 @@ class AGranPoint:
         py_mat = sparse.coo_matrix((py,(dist.row,dist.col)), shape=dist.get_shape())
         self.px = np.squeeze(np.asarray(px_mat.sum(axis=1)))
         self.py = np.squeeze(np.asarray(py_mat.sum(axis=1)))
+
+        nem_x = np.cos(2*self.orient[dist.col])
+        nem_y = np.sin(2*self.orient[dist.col])
+        nem_x_mat = sparse.coo_matrix((nem_x,(dist.row,dist.col)), shape=dist.get_shape())
+        nem_y_mat = sparse.coo_matrix((nem_y,(dist.row,dist.col)), shape=dist.get_shape())
+        self.nem_x = np.squeeze(np.asarray(nem_x_mat.sum(axis=1)))
+        self.nem_y = np.squeeze(np.asarray(nem_y_mat.sum(axis=1)))
 
 
 
