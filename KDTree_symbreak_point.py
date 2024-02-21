@@ -77,7 +77,7 @@ class AGranPoint:
         dy = -self.pos[dist.row,1]+self.pos[dist.col,1]
         
         # torque = sparse.coo_matrix((self.mur*np.sin(2*dtheta)/(dx**2+dy**2+0.1),(dist.row,dist.col)), shape=dist.get_shape())
-        torque = sparse.coo_matrix((self.mur*np.sin(2*dtheta),(dist.row,dist.col)), shape=dist.get_shape())
+        torque = sparse.coo_matrix((np.sin(2*dtheta),(dist.row,dist.col)), shape=dist.get_shape())
         
         TAU = np.squeeze(np.asarray(torque.sum(axis=1)))#/np.squeeze(np.asarray(torque.getnnz(axis=1)))
         density = np.squeeze(np.asarray(torque.getnnz(axis=1)))                                                                        
