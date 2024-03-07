@@ -9,7 +9,7 @@ import matplotlib.patches as patches
 from tqdm import trange
 
 class AGranFlat:
-    def __init__(self,Lx = 100.0,Ly=100.0,AR = 1.5,r0 = 1., rb = 0.3,rho=0.25, r_tr = 8, T = 10,factor = 0.1, v0 = 1.2, eta = 1500,mua = 0.0007, mup = 0.001, mur = 0.0001,mu_tr = 0.0001,trN = 1, k = 200,kw = 1, dw = 8, v_drag=1, mode='drag',lfrac = 0.8,pfrac = 0.2,Nrelax = 20000):
+    def __init__(self,Lx = 100.0,Ly=100.0,AR = 1.5,r0 = 1., rb = 0.3,rho=0.25, r_tr = 8, T = 10,Ta = 5,factor = 0.1, v0 = 1.2, eta = 1500,mua = 0.0007, mup = 0.001, mur = 0.0001,mu_tr = 0.0001,trN = 1, k = 200,kw = 1, dw = 8, v_drag=1, mode='drag',lfrac = 0.8,pfrac = 0.2,Nrelax = 20000):
         self.Lx = Lx   # system size
         self.Ly = Ly
         self.AR = AR   # aspect ratio
@@ -24,7 +24,8 @@ class AGranFlat:
         factor =factor       # one step jump length
         self.v0 = v0   # propulsion speed
         self.dt = r0*factor/(self.v0)        # time discretization
-        self.T=2/self.dt  # number of steps for damping
+        self.T=T/self.dt  # number of steps for damping
+        self.Ta = Ta/self.dt
 
         self.eta = eta          # noise strength
         self.mua = mua         # mobility
@@ -276,13 +277,13 @@ class AGranFlat:
         Fxtr2 = np.zeros(self.N)
         Fxtr0 = np.zeros(self.N)
         
-        Fxtr1[filt1l] -= self.kw*(self.dw+dx1[filt1l])
-        Fxtr2[filt2l] -= self.kw*(self.dw+dx2[filt2l])
-        Fxtr0[filt0l] -= self.kw*(self.dw+dx0[filt0l])
+        Fxtr1[filt1l] -= self.kw*(self.dw+dx1[filt1l])**2
+        Fxtr2[filt2l] -= self.kw*(self.dw+dx2[filt2l])**2
+        Fxtr0[filt0l] -= self.kw*(self.dw+dx0[filt0l])**2
 
-        Fxtr1[filt1r] -= self.kw*(-self.dw+dx1[filt1r])
-        Fxtr2[filt2r] -= self.kw*(-self.dw+dx2[filt2r])
-        Fxtr0[filt0r] -= self.kw*(-self.dw+dx0[filt0r])
+        Fxtr1[filt1r] += self.kw*(self.dw-dx1[filt1r])**2
+        Fxtr2[filt2r] += self.kw*(self.dw-dx2[filt2r])**2
+        Fxtr0[filt0r] += self.kw*(self.dw-dx0[filt0r])**2
         
         FX[self.Np:] += Fxtr0+Fxtr1+Fxtr2
         TAU+=self.Torque(Fxtr1,np.zeros(self.N),self.armb1[:,0],self.armb1[:,1])+ self.Torque(Fxtr2,np.zeros(self.N),self.armb2[:,0],self.armb2[:,1])
@@ -338,7 +339,7 @@ class AGranFlat:
         # drag force
         FX -= self.mom_trans[:,0]/(self.T*self.dt)  
         FY -= self.mom_trans[:,1]/(self.T*self.dt)
-        TAU -= self.mom_ang/(self.T*self.dt)
+        TAU -= self.mom_ang/(self.Ta*self.dt)
         
         # propulsion force
         FX[self.Np:] += self.f0*np.cos(self.orient)
@@ -353,11 +354,11 @@ class AGranFlat:
         
 
         # noise
-        FX[:self.Np] += self.eta*np.sqrt(self.dt)*np.random.uniform(-1, 1, size=self.Np)
-        FY[:self.Np] += self.eta*np.sqrt(self.dt)*np.random.uniform(-1, 1, size=self.Np)
-        if self.anoise==True:
-            FX[self.Np:] += self.eta*np.sqrt(self.dt)*np.random.uniform(-1, 1, size=self.N-self.Np)
-            FY[self.Np:] += self.eta*np.sqrt(self.dt)*np.random.uniform(-1, 1, size=self.N-self.Np)
+        # FX[:self.Np] += self.eta*np.sqrt(self.dt)*np.random.uniform(-1, 1, size=self.Np)
+        # FY[:self.Np] += self.eta*np.sqrt(self.dt)*np.random.uniform(-1, 1, size=self.Np)
+        # if self.anoise==True:
+        #     FX[self.Np:] += self.eta*np.sqrt(self.dt)*np.random.uniform(-1, 1, size=self.N-self.Np)
+        #     FY[self.Np:] += self.eta*np.sqrt(self.dt)*np.random.uniform(-1, 1, size=self.N-self.Np)
 #         TAU += 3*self.eta*np.sqrt(self.dt)*np.random.uniform(-np.pi, np.pi, size=self.N)/self.mur
 
 
@@ -411,7 +412,7 @@ class AGranFlat:
         Lx = self.Lx
         Ly = self.Ly
         mode = self.mode
-        Lscale = 1
+        Lscale = 5
         self.Lx = Lscale*Lx
         self.Ly = Lscale*Ly
         self.mode = 'relax'
